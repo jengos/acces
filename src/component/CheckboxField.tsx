@@ -10,18 +10,13 @@ interface CheckboxFieldProps {
 
 const CheckboxField: React.FC<CheckboxFieldProps> = ({ name, label, rules }) => {
   const { values, errors, setValue, validateField } = useFormContext();
+  const checked = values[name] === "true";
+  const errorId = `${name}-error`;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    const newValue = checked ? "true" : "";
+    const newValue = e.target.checked ? "true" : "";
     setValue(name, newValue);
   };
-
-  const handleBlur = () => {
-    validateField(name, rules, values[name]);
-  };
-
-  const isChecked = values[name] === "true";
 
   return (
     <FormGroup check>
@@ -29,22 +24,18 @@ const CheckboxField: React.FC<CheckboxFieldProps> = ({ name, label, rules }) => 
         <Input
           type="checkbox"
           name={name}
-          checked={isChecked}
+          checked={checked}
           onChange={handleChange}
-          onBlur={handleBlur}
+          onBlur={() => validateField(name, rules, values[name])}
           aria-invalid={!!errors[name]}
-          aria-describedby={errors[name] ? `${name}-error` : undefined}
+          aria-required={!!rules?.required?.value}
+          aria-describedby={errors[name] ? errorId : undefined}
           className={errors[name] ? "is-invalid" : ""}
         />
-        {label}
-        {rules?.required?.value && (
-          <span className="text-danger" aria-hidden="true">
-            {" *"}
-          </span>
-        )}
+        {label} {rules?.required?.value && <span className="text-danger" aria-hidden="true">*</span>}
       </Label>
       {errors[name] && (
-        <FormFeedback id={`${name}-error`} role="alert" style={{ display: "block" }}>
+        <FormFeedback id={errorId} role="alert" style={{ display: "block" }}>
           {errors[name]}
         </FormFeedback>
       )}

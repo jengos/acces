@@ -11,20 +11,16 @@ interface FieldProps {
 
 const Field: React.FC<FieldProps> = ({ name, label, type = "text", rules }) => {
   const { values, errors, setValue, validateField } = useFormContext();
-  const uniqueId = name + "-1";
+  const id = `${name}-1`;
+  const errorId = `${name}-error`;
 
   return (
     <FormGroup>
-      <Label for={uniqueId}>
-        {label}
-        {rules?.required?.value && (
-          <span className="text-danger" aria-hidden="true">
-            {" *"}
-          </span>
-        )}
+      <Label for={id}>
+        {label} {rules?.required?.value && <span className="text-danger" aria-hidden="true">*</span>}
       </Label>
       <Input
-        id={uniqueId}
+        id={id}
         name={name}
         type={type}
         value={values[name] || ""}
@@ -32,10 +28,11 @@ const Field: React.FC<FieldProps> = ({ name, label, type = "text", rules }) => {
         onBlur={() => validateField(name, rules)}
         invalid={!!errors[name]}
         aria-invalid={!!errors[name]}
-        aria-describedby={errors[name] ? `${name}-error` : undefined}
+        aria-required={!!rules?.required?.value}
+        aria-describedby={errors[name] ? errorId : undefined}
       />
       {errors[name] && (
-        <FormFeedback id={`${name}-error`} role="alert">
+        <FormFeedback id={errorId} role="alert">
           {errors[name]}
         </FormFeedback>
       )}

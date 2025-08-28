@@ -1,54 +1,116 @@
 import React, { createContext, useContext, useState } from "react";
 
+type Values = { [key: string]: any };
+type Errors = { [key: string]: string };
+
 interface FormContextType {
-  values: Record<string, any>;
-  errors: Record<string, string>;
+  values: Values;
+  errors: Errors;
   setValue: (name: string, value: any) => void;
-  validateField: (name: string, rules?: any, value?: any) => boolean;
-  validateAll: (fields: { name: string; rules?: any }[]) => boolean;
+  validateField: (name: string, rules?: any, valueParam?: any) => boolean;
+  validateAll: (fields: { name: string; rules: any }[]) => boolean;
+  setInitialValues?: (data: Values) => void;
 }
 
 const FormContext = createContext<FormContextType | undefined>(undefined);
 
+export const useFormContext = () => {
+  const ctx = useContext(FormContext);
+  if (!ctx) throw new Error("useFormContext debe usarse dentro de FormProvider");
+  return ctx;
+};
+
 export const FormProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [values, setValues] = useState<Record<string, any>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Values>({});
+  const [errors, setErrors] = useState<Errors>({});
+
+  const setInitialValues = (data: Values) => {
+    setValues(data);
+    setErrors({});
+  };
 
   const setValue = (name: string, value: any) => {
     setValues((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" })); // limpiar error al escribir
+    setErrors((prev) => ({ ...prev, [name]: "" })); // limpia el error al escribir
   };
 
-  const validateField = (name: string, rules?: any, value?: any): boolean => {
-    const fieldValue = value ?? values[name];
-    let errorMsg = "";
+  const isEmpty = (v: any) =>
+    v === undefined || v === null ||
+    (typeof v === "string" && v.trim() === "") ||
+    (typeof v === "boolean" && v === false);
 
-    if (rules?.required?.value && !fieldValue) {
-      errorMsg = rules.required.errormsg || "Este campo es obligatorio";
+  const validateField = (name: string, rules?: any, valueParam?: any): boolean => {
+    const value = valueParam !== undefined ? valueParam : values[name];
+    let error = "";
+
+    if (!error && rules?.required?.value && isEmpty(value)) {
+      error = rules.required.errormsg || "Campo requerido";
     }
 
-    setErrors((prev) => ({ ...prev, [name]: errorMsg }));
-    return !errorMsg;
+    if (!error && rules?.email?.value) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (typeof value === "string" && value && !emailRegex.test(value)) {
+        error = rules.email.errormsg || "Correo inválido";
+      }
+    }
+
+    if (!error && rules?.minLength?.value) {
+      if (typeof value === "string" && value.length < rules.minLength.value) {
+        error = rules.minLength.errormsg || `Mínimo ${rules.minLength.value} caracteres`;
+      }
+    }
+
+    if (!error && rules?.maxLength?.value) {
+      if (typeof value === "string" && value.length > rules.maxLength.value) {
+        error = rules.maxLength.errormsg || `Máximo ${rules.maxLength.value} caracteres`;
+      }
+    }
+
+    if (!error && rules?.minValue?.value !== undefined) {
+      const n = Number(value);
+      if (!Number.isNaN(n) && n < rules.minValue.value) {
+        error = rules.minValue.errormsg || `Mínimo ${rules.minValue.value}`;
+      }
+    }
+
+    if (!error && rules?.maxValue?.value !== undefined) {
+      const n = Number(value);
+      if (!Number.isNaN(n) && n > rules.maxValue.value) {
+        error = rules.maxValue.errormsg || `Máximo ${rules.maxValue.value}`;
+      }
+    }
+
+    if (!error && rules?.pattern?.value) {
+      const re: RegExp =
+        rules.pattern.value instanceof RegExp
+          ? rules.pattern.value
+          : new RegExp(rules.pattern.value);
+      if (typeof value === "string" && value && !re.test(value)) {
+        error = rules.pattern.errormsg || "Formato inválido";
+      }
+    }
+
+    if (!error && typeof rules?.custom?.value === "function") {
+      const ok = rules.custom.value(value, values);
+      if (!ok) error = rules.custom.errormsg || "Valor inválido";
+    }
+
+    setErrors((prev) => ({ ...prev, [name]: error }));
+    return !error;
   };
 
-  const validateAll = (fields: { name: string; rules?: any }[]): boolean => {
-    let allValid = true;
-    fields.forEach(({ name, rules }) => {
-      const isValid = validateField(name, rules);
-      if (!isValid) allValid = false;
+  const validateAll = (fields: { name: string; rules: any }[]): boolean => {
+    let isValid = true;
+    fields.forEach((f) => {
+      const ok = validateField(f.name, f.rules);
+      if (!ok) isValid = false;
     });
-    return allValid;
+    return isValid;
   };
 
   return (
-    <FormContext.Provider value={{ values, errors, setValue, validateField, validateAll }}>
+    <FormContext.Provider value={{ values, errors, setValue, validateField, validateAll, setInitialValues }}>
       {children}
     </FormContext.Provider>
   );
-};
-
-export const useFormContext = (): FormContextType => {
-  const ctx = useContext(FormContext);
-  if (!ctx) throw new Error("useFormContext debe usarse dentro de un FormProvider");
-  return ctx;
 };
